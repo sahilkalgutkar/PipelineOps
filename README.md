@@ -70,6 +70,22 @@ platform-engineering skill set:
 | Local infra | Docker Compose | Multi-service orchestration, healthchecks, dependency ordering |
 | Deployment | Kubernetes manifests (Deployments, HPA, Ingress) + an AWS (RDS/ElastiCache/EKS) deployment guide | Container orchestration and cloud deployment |
 
+## Auth: what changed and why
+
+The API originally used DRF token auth, with the token kept in the
+frontend's `localStorage` — it worked, but it was a real weak spot: any
+XSS on the page (an injected script, a compromised dependency) could read
+that token straight out of storage and walk off with a fully-authenticated
+session, no further access needed.
+
+It's now httpOnly session cookies instead. `/api/auth/login/` sets a
+`sessionid` cookie the browser stores but JS genuinely cannot read —
+verified directly, not just assumed: `document.cookie` in a real browser
+session only ever shows `csrftoken`, never `sessionid`. State-changing
+requests also require a CSRF token echoed back in a header, so a
+malicious site can't ride an existing session to forge requests either.
+See [core-api's README](core-api/README.md#auth) for the mechanics.
+
 ## Repository layout
 
 ```
