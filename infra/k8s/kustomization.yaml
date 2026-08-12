@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: pipelineops
+resources:
+  - 00-namespace.yaml
+  - 10-configmap.yaml
+  # 11-secret.example.yaml is intentionally excluded — create the real
+  # pipelineops-secrets Secret with `kubectl create secret` (see its header
+  # comment) before applying this kustomization.
+  - 20-postgres.yaml
+  - 21-redis.yaml
+  - 30-core-api.yaml
+  - 32-celery-worker.yaml
+  - 33-celery-beat.yaml
+  - 40-ingestion.yaml
+  - 50-frontend.yaml
+  - 60-ingress.yaml

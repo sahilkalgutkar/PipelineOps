@@ -1,0 +1,61 @@
+# Requires an ingress controller (e.g. `kind` + ingress-nginx, or the AWS
+# Load Balancer Controller on EKS). See infra/k8s/README.md for setup.
+#
+# Split into two Ingress objects because rewrite-target applies per-object:
+# core-api/admin/frontend already expect their paths as-is (Django's
+# urls.py mounts at /api/ and /admin/), but the Go ingestion service's
+# routes live at /v1/... so /ingest/* needs its prefix stripped.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pipelineops-app
+  namespace: pipelineops
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: pipelineops.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8000
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pipelineops-ingest
+  namespace: pipelineops
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: pipelineops.local
+      http:
+        paths:
+          - path: /ingest(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ingestion
+                port:
+                  number: 8080

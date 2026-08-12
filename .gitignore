@@ -1,0 +1,47 @@
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+venv/
+.venv/
+env/
+db.sqlite3
+staticfiles/
+media/
+core-api/.env
+
+# --- Node / React ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Go ---
+ingestion-service/bin/
+ingestion-service/*.exe
+ingestion-service/*.test
+ingestion-service/*.out
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig*
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Docker ---
+*.log
