@@ -52,7 +52,11 @@ func main() {
 		logger.Error("could not connect to redis", "error", err)
 		os.Exit(1)
 	}
-	defer redisClient.Close()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			logger.Warn("error closing redis client", "error", err)
+		}
+	}()
 
 	deps := handlers.Deps{DB: pool, Cache: redisClient, Logger: logger}
 

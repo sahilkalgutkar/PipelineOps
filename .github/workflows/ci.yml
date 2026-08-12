@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ingestion-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingestion-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ingestion-service/go.sum
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+          working-directory: ingestion-service
+      - run: go build ./...
+      - run: go test ./... -v
+
+  core-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core-api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pipelineops
+          POSTGRES_PASSWORD: pipelineops
+          POSTGRES_DB: pipelineops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://pipelineops:pipelineops@localhost:5432/pipelineops
+      DJANGO_SECRET_KEY: ci-test-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: core-api/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: python manage.py test
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

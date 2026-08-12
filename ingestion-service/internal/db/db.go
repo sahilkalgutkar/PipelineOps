@@ -91,7 +91,9 @@ func (p *Pool) InsertHeartbeat(ctx context.Context, params InsertHeartbeatParams
 	if err != nil {
 		return 0, time.Time{}, err
 	}
-	defer tx.Rollback(ctx)
+	// Rollback is a no-op once Commit has succeeded; the error here only
+	// matters if it fires before Commit, which the final `return err` below covers.
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	receivedAt := time.Now().UTC()
 

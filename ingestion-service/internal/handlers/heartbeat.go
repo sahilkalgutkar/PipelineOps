@@ -15,9 +15,25 @@ import (
 	"pipelineops/ingestion-service/internal/metrics"
 )
 
+// DBClient is the subset of *db.Pool the handlers need. Declared here
+// (rather than accepting *db.Pool directly) so tests can supply a fake
+// without touching Postgres.
+type DBClient interface {
+	FindJobByNameOrID(ctx context.Context, identifier string) (*db.Job, error)
+	InsertHeartbeat(ctx context.Context, params db.InsertHeartbeatParams) (int64, time.Time, error)
+	Ping(ctx context.Context) error
+}
+
+// CacheClient is the subset of *cache.Client the handlers need, mirroring DBClient.
+type CacheClient interface {
+	SetLastHeartbeat(ctx context.Context, hb cache.LastHeartbeat) error
+	GetLastHeartbeat(ctx context.Context, jobID string) (*cache.LastHeartbeat, error)
+	Ping(ctx context.Context) error
+}
+
 type Deps struct {
-	DB     *db.Pool
-	Cache  *cache.Client
+	DB     DBClient
+	Cache  CacheClient
 	Logger *slog.Logger
 }
 
