@@ -39,7 +39,7 @@ flowchart LR
     ING -- "insert heartbeat,<br/>update job status" --> PG
     ING -- "cache last heartbeat" --> RD
     U --> FE
-    FE -- "REST + token auth" --> API
+    FE -- "REST + session cookie" --> API
     API --> PG
     WORK -- "poll every N seconds" --> PG
     WORK --> SL
@@ -109,15 +109,24 @@ to disable that).
 
 ### Try it end to end
 
-```bash
-# 1. Log in and grab a token
-TOKEN=$(curl -s -X POST localhost:8000/api/auth/token/ \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+Auth is a session cookie, not a bearer token (see [core-api's
+README](core-api/README.md#auth)), so scripting the API means carrying a
+cookie jar and echoing the CSRF cookie back as a header, same as the
+frontend does:
 
-# 2. Register a job
-curl -s -X POST localhost:8000/api/jobs/ \
-  -H "Authorization: Token $TOKEN" -H "Content-Type: application/json" \
+```bash
+# 1. Prime the CSRF cookie, then log in (the session cookie lands in the jar)
+curl -s -c cookies.txt -b cookies.txt localhost:8000/api/auth/me/ > /dev/null
+CSRF=$(grep csrftoken cookies.txt | awk '{print $NF}')
+curl -s -c cookies.txt -b cookies.txt -X POST localhost:8000/api/auth/login/ \
+  -H "Content-Type: application/json" -H "X-CSRFToken: $CSRF" \
+  -d '{"username":"admin","password":"admin"}'
+
+# 2. Django rotates the CSRF token on login, so re-read it from the jar
+# before the next state-changing request — reusing the pre-login value 403s.
+CSRF=$(grep csrftoken cookies.txt | awk '{print $NF}')
+curl -s -c cookies.txt -b cookies.txt -X POST localhost:8000/api/jobs/ \
+  -H "Content-Type: application/json" -H "X-CSRFToken: $CSRF" \
   -d '{"name":"nightly-etl","expected_interval_seconds":86400,"grace_period_seconds":300}'
 
 # 3. Send a heartbeat, as the job itself would on every run
@@ -184,7 +193,10 @@ path the manifests were designed for.
 
 7. **Route 53 + ACM** for a real domain and TLS in front of the ALB, and
    **Secrets Manager** (via External Secrets Operator) instead of a plain
-   Kubernetes `Secret` for anything beyond a demo.
+   Kubernetes `Secret` for anything beyond a demo. Once that TLS is
+   terminating real traffic, flip `DJANGO_SESSION_COOKIE_SECURE` and
+   `DJANGO_CSRF_COOKIE_SECURE` to `"true"` in the ConfigMap — they're
+   `"false"` for the local `kind` walkthrough because that's plain HTTP.
 
 ## What's deliberately out of scope
 

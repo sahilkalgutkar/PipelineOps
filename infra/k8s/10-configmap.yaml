@@ -10,6 +10,13 @@ data:
   DJANGO_DEBUG: "false"
   DJANGO_ALLOWED_HOSTS: "*"
   CORS_ALLOWED_ORIGINS: "http://pipelineops.local"
+  CSRF_TRUSTED_ORIGINS: "http://pipelineops.local"
+  # frontend and core-api share one origin here (path-routed through the
+  # same Ingress host), so this is same-site cookie auth over plain HTTP.
+  # Flip both to "true" once a real TLS-terminating ALB is in front (EKS) —
+  # see the AWS deployment section of the root README.
+  DJANGO_SESSION_COOKIE_SECURE: "false"
+  DJANGO_CSRF_COOKIE_SECURE: "false"
   REDIS_URL: "redis://redis:6379/0"
   CELERY_BROKER_URL: "redis://redis:6379/0"
   CELERY_RESULT_BACKEND: "redis://redis:6379/0"

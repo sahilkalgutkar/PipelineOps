@@ -8,7 +8,9 @@ heartbeats and fire alerts.
 
 | Method | Path | |
 |---|---|---|
-| POST | `/api/auth/token/` | Obtain an auth token (`{username, password}` → `{token}`) |
+| GET | `/api/auth/me/` | Current session's user, `401` if not logged in. Also primes the `csrftoken` cookie. |
+| POST | `/api/auth/login/` | `{username, password}` → `{username}`, sets an httpOnly session cookie |
+| POST | `/api/auth/logout/` | Clears the session |
 | GET/POST | `/api/jobs/` | List / create jobs |
 | GET/PATCH/DELETE | `/api/jobs/:id/` | Job detail (includes recent heartbeats), update, delete |
 | GET | `/api/heartbeats/?job=:id` | Heartbeat history (read-only — written by `ingestion-service`) |
@@ -18,7 +20,26 @@ heartbeats and fire alerts.
 | GET | `/healthz` | Liveness check |
 | — | `/admin/` | Django admin |
 
-All `/api/` endpoints (except token auth) require `Authorization: Token <token>`.
+## Auth
+
+Session-cookie auth, not a bearer token: `/api/auth/login/` sets an
+httpOnly `sessionid` cookie, so there's nothing a browser-side XSS payload
+could read out of `localStorage` and exfiltrate. All `/api/` endpoints
+require that session. State-changing requests (`POST`/`PUT`/`PATCH`/`DELETE`)
+additionally require an `X-CSRFToken` header matching the `csrftoken`
+cookie — Django's standard double-submit-cookie CSRF check, enforced by
+`SessionAuthentication` (see `pipelineops/authentication.py` for why it's a
+thin subclass rather than the DRF default: the default returns `403` for
+"not logged in", which is indistinguishable from a CSRF failure or an
+authenticated-but-forbidden request; this makes it a clean `401` instead).
+The `csrftoken` cookie is intentionally *not* httpOnly — the frontend has
+to read it to echo it back in the header, which is the whole point of the
+double-submit pattern.
+
+Because the frontend and API are different origins even in local dev
+(different ports), this needs `CORS_ALLOW_CREDENTIALS = True` and the
+frontend origin listed in both `CORS_ALLOWED_ORIGINS` and
+`CSRF_TRUSTED_ORIGINS`.
 
 ## Alerting
 

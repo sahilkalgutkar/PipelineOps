@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
-from rest_framework.authtoken.views import obtain_auth_token
+
+from . import auth_views
 
 
 def healthz(request):
@@ -11,7 +12,9 @@ def healthz(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("healthz", healthz),
-    path("api/auth/token/", obtain_auth_token),
+    path("api/auth/me/", auth_views.me),
+    path("api/auth/login/", auth_views.login_view),
+    path("api/auth/logout/", auth_views.logout_view),
     path("api/", include("jobs.urls")),
     path("api/", include("alerts.urls")),
 ]

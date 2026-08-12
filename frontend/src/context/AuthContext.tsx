@@ -1,34 +1,48 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { login as apiLogin } from "../api/client";
+import { fetchCurrentUser, login as apiLogin, logout as apiLogout } from "../api/client";
 
 interface AuthContextValue {
-  token: string | null;
+  username: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "pipelineops_token";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
+  const [username, setUsername] = useState<string | null>(null);
+  // There's no token to read synchronously anymore — the session lives in
+  // an httpOnly cookie the JS can't see, so the only way to know whether a
+  // returning visitor is still logged in is to ask the server.
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((user) => setUsername(user.username))
+      .catch(() => setUsername(null))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   async function login(username: string, password: string) {
-    const newToken = await apiLogin(username, password);
-    localStorage.setItem(STORAGE_KEY, newToken);
-    setToken(newToken);
+    const user = await apiLogin(username, password);
+    setUsername(user.username);
   }
 
-  function logout() {
-    localStorage.removeItem(STORAGE_KEY);
-    setToken(null);
+  async function logout() {
+    try {
+      await apiLogout();
+    } finally {
+      setUsername(null);
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ token, isAuthenticated: !!token, login, logout }}>
+    <AuthContext.Provider
+      value={{ username, isAuthenticated: !!username, isLoading, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

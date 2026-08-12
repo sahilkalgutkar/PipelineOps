@@ -28,7 +28,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "rest_framework.authtoken",
     "corsheaders",
     "jobs",
     "alerts",
@@ -90,10 +89,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- DRF ---
+# Session-cookie auth only: the SPA never handles a bearer token directly,
+# so it has nothing an XSS payload could read out of localStorage. The
+# session cookie is httpOnly; CSRF is enforced by SessionAuthentication
+# below and satisfied by the frontend's csrftoken cookie + X-CSRFToken header.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
+        "pipelineops.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -102,10 +104,24 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
 }
 
-# --- CORS ---
+# --- CORS / CSRF ---
+# The frontend and core-api are different origins even in local dev
+# (different ports), so cookies only flow if CORS explicitly allows
+# credentials and Django is told the frontend origin is trusted to make
+# state-changing (CSRF-protected) requests.
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS", default=["http://localhost:5173", "http://localhost:3000"]
 )
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS", default=["http://localhost:5173", "http://localhost:3000"]
+)
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = env.bool("DJANGO_SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = env.bool("DJANGO_CSRF_COOKIE_SECURE", default=not DEBUG)
 
 # --- Redis / Celery ---
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")

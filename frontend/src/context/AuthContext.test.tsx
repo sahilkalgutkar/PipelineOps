@@ -5,67 +5,93 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 vi.mock("../api/client", () => ({
+  fetchCurrentUser: vi.fn(),
   login: vi.fn(),
+  logout: vi.fn(),
 }));
 
-import { login as apiLogin } from "../api/client";
+import { fetchCurrentUser, login as apiLogin, logout as apiLogout } from "../api/client";
 
-const STORAGE_KEY = "pipelineops_token";
 const wrapper = ({ children }: { children: ReactNode }) => <AuthProvider>{children}</AuthProvider>;
 
 describe("AuthContext", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.mocked(fetchCurrentUser).mockReset();
     vi.mocked(apiLogin).mockReset();
+    vi.mocked(apiLogout).mockReset();
   });
 
-  it("starts unauthenticated when there is no stored token", () => {
+  it("starts loading, then unauthenticated when there is no valid session", async () => {
+    vi.mocked(fetchCurrentUser).mockRejectedValue(new Error("401"));
     const { result } = renderHook(() => useAuth(), { wrapper });
+
+    expect(result.current.isLoading).toBe(true);
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.token).toBeNull();
+    expect(result.current.username).toBeNull();
   });
 
-  it("picks up a token already in localStorage on mount", () => {
-    localStorage.setItem(STORAGE_KEY, "existing-token");
+  it("picks up an existing session cookie on mount", async () => {
+    vi.mocked(fetchCurrentUser).mockResolvedValue({ username: "admin" });
     const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.token).toBe("existing-token");
+    expect(result.current.username).toBe("admin");
   });
 
-  it("stores the token and flips isAuthenticated on successful login", async () => {
-    vi.mocked(apiLogin).mockResolvedValue("new-token");
+  it("sets the authenticated user on successful login", async () => {
+    vi.mocked(fetchCurrentUser).mockRejectedValue(new Error("401"));
+    vi.mocked(apiLogin).mockResolvedValue({ username: "admin" });
     const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
       await result.current.login("admin", "admin");
     });
 
-    expect(result.current.token).toBe("new-token");
     expect(result.current.isAuthenticated).toBe(true);
-    expect(localStorage.getItem(STORAGE_KEY)).toBe("new-token");
+    expect(result.current.username).toBe("admin");
   });
 
-  it("does not store a token when login rejects", async () => {
+  it("stays unauthenticated when login is rejected", async () => {
+    vi.mocked(fetchCurrentUser).mockRejectedValue(new Error("401"));
     vi.mocked(apiLogin).mockRejectedValue(new Error("invalid credentials"));
     const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
       await expect(result.current.login("admin", "wrong")).rejects.toThrow();
     });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("clears the token on logout", async () => {
-    localStorage.setItem(STORAGE_KEY, "existing-token");
+  it("clears the user on logout", async () => {
+    vi.mocked(fetchCurrentUser).mockResolvedValue({ username: "admin" });
+    vi.mocked(apiLogout).mockResolvedValue(undefined);
     const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
-    act(() => {
-      result.current.logout();
+    await act(async () => {
+      await result.current.logout();
     });
 
-    await waitFor(() => expect(result.current.isAuthenticated).toBe(false));
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.username).toBeNull();
+  });
+
+  it("still clears local state if the logout request itself fails", async () => {
+    vi.mocked(fetchCurrentUser).mockResolvedValue({ username: "admin" });
+    vi.mocked(apiLogout).mockRejectedValue(new Error("network error"));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    await act(async () => {
+      await expect(result.current.logout()).rejects.toThrow();
+    });
+
+    expect(result.current.isAuthenticated).toBe(false);
   });
 });
