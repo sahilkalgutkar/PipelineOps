@@ -1,8 +1,9 @@
 # frontend
 
-React + TypeScript dashboard for PipelineOps: job health, alert rules, and
-heartbeat history, talking to `core-api` over a session cookie (see the
-root README's [Auth section](../README.md#auth-what-changed-and-why)).
+I built this as the React + TypeScript dashboard for PipelineOps: job health,
+alert rules, and heartbeat history, talking to `core-api` over a session
+cookie (see the root README's
+[Auth section](../README.md#auth-what-changed-and-why)).
 
 ## Running locally
 

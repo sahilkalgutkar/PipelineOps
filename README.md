@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/sahilkalgutkar/PipelineOps/actions/workflows/ci.yml/badge.svg)](https://github.com/sahilkalgutkar/PipelineOps/actions/workflows/ci.yml)
 
-A job-monitoring and alerting platform for teams running scheduled data
-pipelines — cron jobs, Airflow DAGs, batch ETL scripts. Jobs send a
+I built a job-monitoring and alerting platform for teams running scheduled
+data pipelines — cron jobs, Airflow DAGs, batch ETL scripts. Jobs send a
 heartbeat on every run; PipelineOps tracks expected intervals, flags jobs
 that go quiet or fail, and pages the team before a stakeholder notices a
 silent failure.
@@ -11,7 +11,7 @@ silent failure.
 Silent pipeline failures are one of the most common blind spots in data
 platform teams: a DAG stops firing, a cron job's host gets decommissioned, a
 script starts throwing on line one — and nobody finds out until a downstream
-report is wrong. PipelineOps exists to close that gap.
+report is wrong. I built PipelineOps to close that gap.
 
 ## Architecture
 
@@ -50,18 +50,18 @@ flowchart LR
     WORK -. "broker" .-> RD
 ```
 
-The ingestion service and the core API are two independent processes that
-share one Postgres schema: Django's migrations own the schema, the Go
+I built the ingestion service and the core API as two independent processes
+that share one Postgres schema: Django's migrations own the schema, the Go
 service writes to it directly with raw SQL for throughput, and the alerting
-worker reads it on a beat schedule. Nothing invented a message queue between
-them because nothing here needs one — the shared table already is the
-integration point.
+worker reads it on a beat schedule. I didn't introduce a message queue
+between them because nothing here needs one — the shared table already is
+the integration point.
 
 ## Why a polyglot stack
 
-Each service exists because it's the right tool for that job, not to pad the
-architecture — but each also happens to demonstrate a different part of a
-platform-engineering skill set:
+I picked each service because it's the right tool for that job, not to pad
+the architecture — but each also happens to demonstrate a different part of
+a platform-engineering skill set:
 
 | Component | Stack | What it demonstrates |
 |---|---|---|
@@ -74,16 +74,16 @@ platform-engineering skill set:
 
 ## Auth: what changed and why
 
-The API originally used DRF token auth, with the token kept in the
+I originally built the API with DRF token auth, with the token kept in the
 frontend's `localStorage` — it worked, but it was a real weak spot: any
 XSS on the page (an injected script, a compromised dependency) could read
 that token straight out of storage and walk off with a fully-authenticated
 session, no further access needed.
 
-It's now httpOnly session cookies instead. `/api/auth/login/` sets a
-`sessionid` cookie the browser stores but JS genuinely cannot read —
-verified directly, not just assumed: `document.cookie` in a real browser
-session only ever shows `csrftoken`, never `sessionid`. State-changing
+I switched it to httpOnly session cookies instead. `/api/auth/login/` sets a
+`sessionid` cookie the browser stores but JS genuinely cannot read — I
+verified this directly, not just assumed it: `document.cookie` in a real
+browser session only ever shows `csrftoken`, never `sessionid`. State-changing
 requests also require a CSRF token echoed back in a header, so a
 malicious site can't ride an existing session to forge requests either.
 See [core-api's README](core-api/README.md#auth) for the mechanics.
@@ -182,10 +182,10 @@ See [infra/k8s/README.md](infra/k8s/README.md) for the full walkthrough —
 
 ## AWS deployment
 
-The Kubernetes manifests are written to run unmodified on EKS once you swap
-the in-cluster Postgres/Redis for managed equivalents. This isn't executed
-as part of this repo (no AWS account is wired up here) — it's the deployment
-path the manifests were designed for.
+I wrote the Kubernetes manifests to run unmodified on EKS once you swap the
+in-cluster Postgres/Redis for managed equivalents. I haven't run this against
+a real AWS account (none is wired up here) — this is the deployment path I
+designed the manifests for.
 
 1. **ECR** — create three repositories and push the three app images:
    ```bash

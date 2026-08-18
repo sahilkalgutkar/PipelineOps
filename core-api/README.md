@@ -1,8 +1,8 @@
 # core-api
 
-Django + Django REST Framework API for PipelineOps: job/alert-rule CRUD,
-auth, the Django admin, and the Celery worker/beat that detect missed
-heartbeats and fire alerts.
+I built this as the Django + Django REST Framework API for PipelineOps:
+job/alert-rule CRUD, auth, the Django admin, and the Celery worker/beat
+that detects missed heartbeats and fires alerts.
 
 ## Endpoints
 
@@ -22,16 +22,16 @@ heartbeats and fire alerts.
 
 ## Auth
 
-Session-cookie auth, not a bearer token: `/api/auth/login/` sets an
+I used session-cookie auth, not a bearer token: `/api/auth/login/` sets an
 httpOnly `sessionid` cookie, so there's nothing a browser-side XSS payload
 could read out of `localStorage` and exfiltrate. All `/api/` endpoints
 require that session. State-changing requests (`POST`/`PUT`/`PATCH`/`DELETE`)
 additionally require an `X-CSRFToken` header matching the `csrftoken`
 cookie — Django's standard double-submit-cookie CSRF check, enforced by
-`SessionAuthentication` (see `pipelineops/authentication.py` for why it's a
-thin subclass rather than the DRF default: the default returns `403` for
-"not logged in", which is indistinguishable from a CSRF failure or an
-authenticated-but-forbidden request; this makes it a clean `401` instead).
+`SessionAuthentication` (see `pipelineops/authentication.py` for why I made
+it a thin subclass rather than using the DRF default: the default returns
+`403` for "not logged in", which is indistinguishable from a CSRF failure or
+an authenticated-but-forbidden request; I wanted a clean `401` instead).
 The `csrftoken` cookie is intentionally *not* httpOnly — the frontend has
 to read it to echo it back in the header, which is the whole point of the
 double-submit pattern.
@@ -43,9 +43,9 @@ frontend origin listed in both `CORS_ALLOWED_ORIGINS` and
 
 ## Alerting
 
-`alerts.tasks.check_missed_heartbeats` runs on a Celery beat schedule
+I run `alerts.tasks.check_missed_heartbeats` on a Celery beat schedule
 (`HEARTBEAT_CHECK_INTERVAL_SECONDS`, default 30s). For each active job whose
-`computed_status` is `late` or `failed`, it opens an `AlertEvent` (skipping
+`computed_status` is `late` or `failed`, it opens an `AlertEvent` (I skip
 jobs that already have one open, so a single outage doesn't spam) and
 dispatches through the job's `AlertRule`s — Slack, email, or SMS — falling
 back to Slack if no rule is configured. Alerts auto-resolve once heartbeats

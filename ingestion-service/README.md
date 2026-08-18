@@ -1,9 +1,9 @@
 # ingestion-service
 
-High-throughput HTTP surface for job heartbeats. Runs independently of the
-Django core-api — it shares only the Postgres schema Django's migrations
-own (`jobs_job`, `jobs_heartbeat`), reading/writing it directly with `pgx`
-for speed rather than going through the REST API.
+I built this as a high-throughput HTTP surface for job heartbeats. It runs
+independently of the Django core-api — I only share the Postgres schema
+Django's migrations own (`jobs_job`, `jobs_heartbeat`), reading/writing it
+directly with `pgx` for speed rather than going through the REST API.
 
 ## Endpoints
 
