@@ -1,0 +1,17 @@
+[run]
+source = .
+omit =
+    manage.py
+    */migrations/*
+    */apps.py
+    pipelineops/asgi.py
+    pipelineops/wsgi.py
+    pipelineops/settings.py
+    pipelineops/celery.py
+    */tests.py
+    .venv/*
+    venv/*
+
+[report]
+exclude_lines =
+    pragma: no cover

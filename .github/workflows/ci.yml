@@ -23,7 +23,14 @@ jobs:
           version: v2.12.2
           working-directory: ingestion-service
       - run: go build ./...
-      - run: go test ./... -v
+      - run: go test ./... -v -coverprofile=coverage.out -covermode=atomic
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ingestion-service/coverage.out
+          flags: ingestion-service
+          fail_ci_if_error: false
 
   core-api:
     runs-on: ubuntu-latest
@@ -56,7 +63,15 @@ jobs:
           cache-dependency-path: core-api/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
-      - run: python manage.py test
+      - run: coverage run manage.py test
+      - run: coverage xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: core-api/coverage.xml
+          flags: core-api
+          fail_ci_if_error: false
 
   frontend:
     runs-on: ubuntu-latest
@@ -72,5 +87,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:cov
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          fail_ci_if_error: false
       - run: npm run build

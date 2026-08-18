@@ -10,6 +10,9 @@ db.sqlite3
 staticfiles/
 media/
 core-api/.env
+core-api/.coverage
+core-api/coverage.xml
+core-api/htmlcov/
 
 # --- Node / React ---
 node_modules/
@@ -19,6 +22,7 @@ frontend/*.local
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+frontend/coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
