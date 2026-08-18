@@ -51,7 +51,10 @@ Reads `DATABASE_URL`, `REDIS_URL`, `PORT` (default `8080`), and `GIN_MODE`
 from the environment — see `docker-compose.yml` at the repo root for the
 values used there.
 
-## Tests / checks
+Normally you'd just use `docker compose up` from the repo root instead of
+running this by hand.
+
+## Checks
 
 ```bash
 go vet ./...
