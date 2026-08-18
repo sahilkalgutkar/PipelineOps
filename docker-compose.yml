@@ -97,6 +97,13 @@ services:
     depends_on:
       core-api:
         condition: service_healthy
+    healthcheck:
+      # alpine:3.19 (the runtime image) has busybox wget but no curl, unlike
+      # core-api's image — see ingestion-service/Dockerfile.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
 
   frontend:
     build:
@@ -108,6 +115,11 @@ services:
     depends_on:
       core-api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:
