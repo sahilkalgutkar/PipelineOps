@@ -40,14 +40,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := connectWithRetry(ctx, logger, databaseURL)
+	pool, err := connectWithRetry(logger, func() (*db.Pool, error) { return db.Connect(ctx, databaseURL) }, time.Sleep)
 	if err != nil {
 		logger.Error("could not connect to postgres", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
 
-	redisClient, err := connectRedisWithRetry(ctx, logger, redisURL)
+	redisClient, err := connectRedisWithRetry(logger, func() (*cache.Client, error) { return cache.Connect(ctx, redisURL) }, time.Sleep)
 	if err != nil {
 		logger.Error("could not connect to redis", "error", err)
 		os.Exit(1)
@@ -95,30 +95,35 @@ func main() {
 	}
 }
 
-func connectWithRetry(ctx context.Context, logger *slog.Logger, dsn string) (*db.Pool, error) {
+// connectWithRetry calls connect up to 15 times, sleeping 2 seconds between
+// attempts, until it succeeds or the attempts are exhausted. connect and
+// sleep are injected so tests can substitute a fake connector and a
+// non-blocking sleep; main passes the real db.Connect and time.Sleep.
+func connectWithRetry(logger *slog.Logger, connect func() (*db.Pool, error), sleep func(time.Duration)) (*db.Pool, error) {
 	var lastErr error
 	for i := 0; i < 15; i++ {
-		pool, err := db.Connect(ctx, dsn)
+		pool, err := connect()
 		if err == nil {
 			return pool, nil
 		}
 		lastErr = err
 		logger.Warn("postgres not ready, retrying", "attempt", i+1, "error", err)
-		time.Sleep(2 * time.Second)
+		sleep(2 * time.Second)
 	}
 	return nil, lastErr
 }
 
-func connectRedisWithRetry(ctx context.Context, logger *slog.Logger, addr string) (*cache.Client, error) {
+// connectRedisWithRetry mirrors connectWithRetry for the Redis client.
+func connectRedisWithRetry(logger *slog.Logger, connect func() (*cache.Client, error), sleep func(time.Duration)) (*cache.Client, error) {
 	var lastErr error
 	for i := 0; i < 15; i++ {
-		client, err := cache.Connect(ctx, addr)
+		client, err := connect()
 		if err == nil {
 			return client, nil
 		}
 		lastErr = err
 		logger.Warn("redis not ready, retrying", "attempt", i+1, "error", err)
-		time.Sleep(2 * time.Second)
+		sleep(2 * time.Second)
 	}
 	return nil, lastErr
 }
