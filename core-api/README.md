@@ -74,6 +74,9 @@ running these by hand.
 ## Checks
 
 ```bash
+pip install -r requirements-dev.txt   # adds ruff on top of requirements.txt
+ruff check .
 python manage.py check
 python manage.py makemigrations --check --dry-run
+python manage.py test
 ```

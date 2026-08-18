@@ -1,5 +1,7 @@
 # PipelineOps
 
+[![CI](https://github.com/sahilkalgutkar/PipelineOps/actions/workflows/ci.yml/badge.svg)](https://github.com/sahilkalgutkar/PipelineOps/actions/workflows/ci.yml)
+
 A job-monitoring and alerting platform for teams running scheduled data
 pipelines — cron jobs, Airflow DAGs, batch ETL scripts. Jobs send a
 heartbeat on every run; PipelineOps tracks expected intervals, flags jobs
@@ -94,7 +96,21 @@ PipelineOps/
 ├── core-api/             Django + DRF API, Celery worker/beat, alert notifiers
 ├── ingestion-service/    Go + Gin heartbeat ingestion service
 ├── infra/k8s/            Kubernetes manifests (kind-ready, EKS-ready)
+├── .github/workflows/    CI — lint, test, build for all three services
 └── docker-compose.yml    Full local stack
+```
+
+## Testing & CI
+
+Every push to `main` and every PR runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+Go vet/lint/test for `ingestion-service`, `ruff` + the Django test suite
+(against a real Postgres) for `core-api`, and lint/test/build for
+`frontend`. Same commands locally:
+
+```bash
+cd ingestion-service && go vet ./... && go build ./... && go test ./...
+cd core-api && pip install -r requirements-dev.txt && ruff check . && python manage.py test
+cd frontend && npm ci && npm run lint && npm test && npm run build
 ```
 
 ## Quick start (Docker Compose)
