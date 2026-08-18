@@ -39,8 +39,11 @@ export function LoginPage() {
         <p className="mb-6 text-sm text-slate-500">Sign in to view job health.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Username</label>
+            <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
+              Username
+            </label>
             <input
+              id="username"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -48,8 +51,11 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+              Password
+            </label>
             <input
+              id="password"
               type="password"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
               value={password}
