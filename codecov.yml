@@ -22,3 +22,12 @@ flags:
   frontend:
     paths:
       - frontend/src/
+
+ignore:
+  # main() is now nothing but wiring: read the environment, dial Postgres and
+  # Redis, serve, wait for a signal, shut down. Everything it used to decide
+  # moved to cmd/server/bootstrap.go, which is tested directly — the retry
+  # loops, the request logger, the env fallbacks and the route table. What is
+  # left here could only be covered by starting the process and killing it,
+  # which would measure the test harness rather than the code.
+  - "ingestion-service/cmd/server/main.go"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -13,9 +14,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"pipelineops/ingestion-service/internal/cache"
 	"pipelineops/ingestion-service/internal/db"
+	"pipelineops/ingestion-service/internal/handlers"
 )
 
 func init() {
@@ -268,5 +271,160 @@ func TestConnectRedisWithRetry_ExhaustsRetriesAndReturnsLastError(t *testing.T) 
 	}
 	if sleeps != 15 {
 		t.Fatalf("sleep called %d times, want 15", sleeps)
+	}
+}
+
+// --- route wiring -----------------------------------------------------------
+//
+// newRouter is the one part of startup where a mistake is invisible until
+// production: a route registered at the wrong path, or bound to the wrong
+// handler, compiles perfectly and fails only when a real client calls it.
+// These tests assert the route table and then prove each route reaches the
+// handler it claims to, by checking behaviour only that handler produces.
+
+type stubDB struct {
+	job     *db.Job
+	findErr error
+	pingErr error
+}
+
+func (s stubDB) FindJobByNameOrID(_ context.Context, _ string) (*db.Job, error) {
+	return s.job, s.findErr
+}
+
+func (s stubDB) InsertHeartbeat(_ context.Context, _ db.InsertHeartbeatParams) (int64, time.Time, error) {
+	return 1, time.Unix(0, 0).UTC(), nil
+}
+
+func (s stubDB) Ping(_ context.Context) error { return s.pingErr }
+
+type stubCache struct {
+	hb      *cache.LastHeartbeat
+	pingErr error
+}
+
+func (s stubCache) SetLastHeartbeat(_ context.Context, _ cache.LastHeartbeat) error { return nil }
+
+func (s stubCache) GetLastHeartbeat(_ context.Context, _ string) (*cache.LastHeartbeat, error) {
+	return s.hb, nil
+}
+
+func (s stubCache) Ping(_ context.Context) error { return s.pingErr }
+
+func testDeps(d stubDB, c stubCache) handlers.Deps {
+	return handlers.Deps{DB: d, Cache: c, Logger: discardLogger()}
+}
+
+func TestNewRouter_RegistersEveryRoute(t *testing.T) {
+	router := newRouter(testDeps(stubDB{}, stubCache{}), discardLogger())
+
+	registered := map[string]bool{}
+	for _, r := range router.Routes() {
+		registered[r.Method+" "+r.Path] = true
+	}
+
+	for _, want := range []string{
+		"GET /healthz",
+		"GET /metrics",
+		"POST /v1/heartbeat",
+		"GET /v1/jobs/:job/heartbeat/latest",
+	} {
+		if !registered[want] {
+			t.Errorf("route %q is not registered; got %v", want, registered)
+		}
+	}
+	if len(router.Routes()) != 4 {
+		t.Errorf("router has %d routes, want exactly 4 — an unintended route is as much a bug as a missing one", len(router.Routes()))
+	}
+}
+
+func TestNewRouter_HealthzReachesTheHealthHandler(t *testing.T) {
+	t.Run("healthy when both dependencies answer", func(t *testing.T) {
+		router := newRouter(testDeps(stubDB{}, stubCache{}), discardLogger())
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+			t.Fatalf("body = %s", rec.Body.String())
+		}
+	})
+
+	// A 503 here can only come from Healthz itself, which is what makes this
+	// a test of the binding rather than of the path.
+	t.Run("degraded when postgres is down", func(t *testing.T) {
+		router := newRouter(testDeps(stubDB{pingErr: errors.New("down")}, stubCache{}), discardLogger())
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+		}
+		if !strings.Contains(rec.Body.String(), `"db":"down"`) {
+			t.Fatalf("body = %s", rec.Body.String())
+		}
+	})
+}
+
+func TestNewRouter_MetricsServesPrometheus(t *testing.T) {
+	router := newRouter(testDeps(stubDB{}, stubCache{}), discardLogger())
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !strings.Contains(rec.Body.String(), "# HELP") {
+		t.Fatalf("/metrics did not return a Prometheus exposition body: %s", rec.Body.String()[:200])
+	}
+}
+
+func TestNewRouter_HeartbeatRouteReachesPostHeartbeat(t *testing.T) {
+	router := newRouter(testDeps(stubDB{}, stubCache{}), discardLogger())
+
+	// An empty body fails PostHeartbeat's binding on the required "job"
+	// field. Only that handler can produce this 400.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+func TestNewRouter_LatestHeartbeatRouteBindsTheJobParam(t *testing.T) {
+	jobID := uuid.New()
+	router := newRouter(
+		testDeps(stubDB{job: &db.Job{ID: jobID, Name: "nightly-etl"}}, stubCache{}),
+		discardLogger(),
+	)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/jobs/nightly-etl/heartbeat/latest", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	// The handler echoes the resolved job id, so seeing it here proves the
+	// :job path segment was actually bound and passed through.
+	if !strings.Contains(rec.Body.String(), jobID.String()) {
+		t.Fatalf("body = %s, want it to contain the resolved job id %s", rec.Body.String(), jobID)
+	}
+	if got := rec.Header().Get("X-Cache"); got != "MISS" {
+		t.Fatalf("X-Cache = %q, want MISS", got)
+	}
+}
+
+func TestNewRouter_UnknownRouteIs404(t *testing.T) {
+	router := newRouter(testDeps(stubDB{}, stubCache{}), discardLogger())
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
 }
