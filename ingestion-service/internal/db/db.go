@@ -95,7 +95,15 @@ func (p *Pool) InsertHeartbeat(ctx context.Context, params InsertHeartbeatParams
 	// matters if it fires before Commit, which the final `return err` below covers.
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	receivedAt := time.Now().UTC()
+	// Postgres stores timestamptz at microsecond precision, so a
+	// nanosecond-precision time.Now() is silently truncated on the way in.
+	// Truncating here instead means the timestamp handed back to the caller is
+	// the same one a later read of this row returns — without it, the
+	// received_at in a heartbeat response disagrees with the stored value in
+	// the last three digits, which is the kind of discrepancy that surfaces
+	// much later as a confusing off-by-a-microsecond in a dashboard or an
+	// alert comparison.
+	receivedAt := time.Now().UTC().Truncate(time.Microsecond)
 
 	var heartbeatID int64
 	err = tx.QueryRow(ctx, `
