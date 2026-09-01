@@ -132,15 +132,27 @@ Go ingestion service, and the frontend, running migrations and seeding an
 `admin` / `admin` superuser automatically (dev-only — see `.env.example`
 to disable that).
 
-| Service | URL |
-|---|---|
-| Frontend dashboard | http://localhost:5173 |
-| Core API | http://localhost:8000/api/ |
-| Django admin | http://localhost:8000/admin/ |
-| Ingestion service | http://localhost:8080 |
+| Service | URL | Host port override |
+|---|---|---|
+| Frontend dashboard | http://localhost:5173 | `FRONTEND_HOST_PORT` |
+| Core API | http://localhost:8000/api/ | `CORE_API_HOST_PORT` |
+| Django admin | http://localhost:8000/admin/ | `CORE_API_HOST_PORT` |
+| Ingestion service | http://localhost:8080 | `INGESTION_HOST_PORT` |
+| Postgres | localhost:5432 | `POSTGRES_HOST_PORT` |
+| Redis | localhost:6379 | `REDIS_HOST_PORT` |
 
-> If a port above is already taken on your machine, override it, e.g.
-> `POSTGRES_HOST_PORT=5434 FRONTEND_HOST_PORT=5175 docker compose up --build`.
+> Every host port above is overridable, which matters because 5432 and 6379 in
+> particular are usually already taken by something. Set them inline or in
+> `.env`:
+>
+> ```bash
+> POSTGRES_HOST_PORT=5434 REDIS_HOST_PORT=6380 CORE_API_HOST_PORT=8800 \
+>   INGESTION_HOST_PORT=8880 FRONTEND_HOST_PORT=5175 docker compose up --build
+> ```
+>
+> Only the host side moves — inside the compose network the services still
+> reach each other on the standard ports, and the frontend is built against
+> whatever `CORE_API_HOST_PORT` is, so the browser follows automatically.
 
 ### Try it end to end
 
